@@ -1,4 +1,6 @@
 using Lab08.Repository;
+using Lab08.Services;
+using Lab08.Services.Contracts;
 using Lab08.Task.Models.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -8,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
@@ -53,6 +56,10 @@ namespace Lab08.Task
                      });
 
             services.AddRepository(Configuration);
+
+            services.AddTransient<IVehicleRegistrationService, VehicleRegistrationService>();
+            services.AddTransient<IParkingLotService, ParkingLotService>();
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

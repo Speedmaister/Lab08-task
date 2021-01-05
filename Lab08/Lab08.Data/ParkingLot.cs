@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Lab08.Data
 {
-    public class Parking : Entity
+    public class ParkingLot : Entity
     {
         public int TotalSpace { get; set; }
         public int AvailableSpace { get; set; }

@@ -683,6 +683,7 @@ namespace Lab08.Repository
             }
 
             entity.IsDeleted = true;
+            entity.DeletedOn = DateTime.Now;
             this.BeforeUpdate(entity);
 
             return MongoRetryPolicy.Retry(() =>
@@ -711,7 +712,8 @@ namespace Lab08.Repository
             }
 
             UpdateDefinition<TEntity> updateDefinition = Builders<TEntity>.Update.Set(x => x.IsDeleted, true);
-            UpdateDefinition<TEntity> modifyDefinition = Builders<TEntity>.Update.Set(x => x.ModifiedOn, DateTime.Now);
+            UpdateDefinition<TEntity> modifyDefinition = Builders<TEntity>.Update.Set(x => x.ModifiedOn, DateTime.Now)
+                                                                                .Set(x => x.DeletedOn, DateTime.Now);
 
             bool result = MongoRetryPolicy.Retry(() =>
             {
@@ -763,6 +765,7 @@ namespace Lab08.Repository
 
             this.BeforeUpdate(entity);
             entity.IsDeleted = true;
+            entity.DeletedOn = DateTime.Now;
 
             return await MongoRetryPolicy.Retry(async () =>
             {
