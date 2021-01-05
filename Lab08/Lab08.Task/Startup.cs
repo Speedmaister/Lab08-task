@@ -1,3 +1,6 @@
+using Lab08.Repository;
+using Lab08.Task.Models.Configuration;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -5,9 +8,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Lab08.Task
@@ -25,6 +30,29 @@ namespace Lab08.Task
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+
+            var jwtSettings = Configuration.GetSection("Jwt").Get<JwtSettings>();
+            services.AddSingleton<JwtSettings>(jwtSettings);
+
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                     .AddJwtBearer(options =>
+                     {
+                         options.RequireHttpsMetadata = false;
+                         options.SaveToken = true;
+                         options.TokenValidationParameters = new TokenValidationParameters
+                         {
+                             ValidateIssuer = true,
+                             ValidateAudience = true,
+                             ValidateLifetime = true,
+                             ValidateIssuerSigningKey = true,
+                             ValidIssuer = jwtSettings.Issuer,
+                             ValidAudience = jwtSettings.Audience,
+                             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+                             ClockSkew = TimeSpan.Zero
+                         };
+                     });
+
+            services.AddRepository(Configuration);
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -36,6 +64,8 @@ namespace Lab08.Task
             }
 
             app.UseRouting();
+
+            app.UseAuthentication();
 
             app.UseAuthorization();
 
