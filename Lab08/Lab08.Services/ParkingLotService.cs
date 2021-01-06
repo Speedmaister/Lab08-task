@@ -79,6 +79,19 @@ namespace Lab08.Services
             return CalculateHoursSpentInParking(parkingLot, vehicleRecord);
         }
 
+        public async Task<HoursInParking> CalculateHoursSpentInParking(Data.Vehicle vehicle)
+        {
+            var parkingLot = await Get();
+
+            if (parkingLot.Vehicles == null || parkingLot.Vehicles.All(x => x.Id != vehicle.Id))
+            {
+                throw new VehicleNotInParkingLotException(vehicle.RegistrationNumber);
+            }
+
+            var vehicleRecord = parkingLot.Vehicles.FirstOrDefault(x => x.Id == vehicle.Id);
+            return CalculateHoursSpentInParking(parkingLot, vehicleRecord);
+        }
+
         private HoursInParking CalculateHoursSpentInParking(Data.ParkingLot parkingLot, Data.VehicleRecord vehicleRecord)
         {
             var dailyHours = new HashSet<int>(PeriodToCollection(parkingLot.DailyCostStart, parkingLot.NigtlyCostStart - TimeSpan.FromHours(1)));

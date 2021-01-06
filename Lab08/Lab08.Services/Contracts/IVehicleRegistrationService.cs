@@ -7,5 +7,6 @@ namespace Lab08.Services.Contracts
     {
         Task<bool> RegisterVehicleAsync(Vehicle vehicle);
         Task<decimal> UnregisterVehicleAsync(string registrationNumber);
+        Task<decimal> PaymentCheckAsync(string registrationNumber);
     }
 }

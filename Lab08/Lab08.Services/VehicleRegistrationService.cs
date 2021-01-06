@@ -78,25 +78,42 @@ namespace Lab08.Services
 
         public async Task<decimal> UnregisterVehicleAsync(string registrationNumber)
         {
-            var vehicleDb = await vehicleRepository.FirstOrDefaultAsync(x => x.RegistrationNumber == registrationNumber);
-            if (vehicleDb == null)
-            {
-                throw new VehicleNotRegisteredException(registrationNumber);
-            }
-
-            var discount = vehicleDb.PromotionCard == null ? 0 : vehicleDb.PromotionCard.Discount;
-
+            var vehicleDb = await GetVehicle(registrationNumber);
             var timeSpentInParking = await parkingLotService.TryToUnregisterCar(vehicleDb);
+            return CalculatePaymentAmount(vehicleDb, timeSpentInParking);
+        }
+
+        public async Task<decimal> PaymentCheckAsync(string registrationNumber)
+        {
+            var vehicleDb = await GetVehicle(registrationNumber);
+            var timeSpentInParking = await parkingLotService.CalculateHoursSpentInParking(vehicleDb);
+            return CalculatePaymentAmount(vehicleDb, timeSpentInParking);
+        }
+
+        private decimal CalculatePaymentAmount(Data.Vehicle vehicleDb, HoursInParking timeSpentInParking)
+        {
+            var discount = vehicleDb.PromotionCard == null ? 0 : vehicleDb.PromotionCard.Discount;
             return (timeSpentInParking.Daily * vehicleDb.Category.DailyCost + timeSpentInParking.Nightly * vehicleDb.Category.NightlyCost) * (1 - discount);
         }
 
-        private static void CheckIfCategoryIsChanged(Vehicle vehicle, Data.Vehicle vehicleDb)
+        private void CheckIfCategoryIsChanged(Vehicle vehicle, Data.Vehicle vehicleDb)
         {
             var categoryType = ValidateVehicleCategory(vehicle);
             if (vehicleDb.Category.Type != categoryType)
             {
                 throw new ChangedVehicleCategoryException(vehicleDb.Category.Type);
             }
+        }
+
+        private async Task<Data.Vehicle> GetVehicle(string registrationNumber)
+        {
+            var vehicleDb = await vehicleRepository.FirstOrDefaultAsync(x => x.RegistrationNumber == registrationNumber);
+            if (vehicleDb == null)
+            {
+                throw new VehicleNotRegisteredException(registrationNumber);
+            }
+
+            return vehicleDb;
         }
 
         private async Task<Data.Vehicle> RegisterVehicleInDbAsync(Vehicle vehicle)

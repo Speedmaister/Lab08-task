@@ -24,23 +24,23 @@ namespace Lab08.Task.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody]VehicleRegisterViewModel vehicle)
+        public async Task<IActionResult> Register([FromBody] VehicleRegisterViewModel vehicle)
         {
             try
             {
-                if(await vehicleRegistrationService.RegisterVehicleAsync(vehicle.ToModel()))
+                if (await vehicleRegistrationService.RegisterVehicleAsync(vehicle.ToModel()))
                 {
                     return Ok();
                 }
 
                 return BadRequest("Parking lot doesn't have free space.");
             }
-            catch(Services.Exceptions.ApplicationException ae)
+            catch (Services.Exceptions.ApplicationException ae)
             {
                 logger.LogWarning(ae, "Error occurred.");
                 return BadRequest(ae.ToString());
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 logger.LogWarning(ex, "Error occurred.");
                 return BadRequest("Failed to register vehicle.");
@@ -54,6 +54,26 @@ namespace Lab08.Task.Controllers
             {
                 var amountToPay = await vehicleRegistrationService.UnregisterVehicleAsync(vehicle.RegistrationNumber);
                 return Ok(new { AmountToPay = amountToPay });
+            }
+            catch (Services.Exceptions.ApplicationException ae)
+            {
+                logger.LogWarning(ae, "Error occurred.");
+                return BadRequest(ae.ToString());
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Error occurred.");
+                return BadRequest("Failed to register vehicle.");
+            }
+        }
+
+        [HttpGet("paymentCheck/{registrationNumber}")]
+        public async Task<IActionResult> PaymentCheck(string registrationNumber)
+        {
+            try
+            {
+                var amount = await vehicleRegistrationService.PaymentCheckAsync(registrationNumber);
+                return Ok(new { amountToPay = amount });
             }
             catch (Services.Exceptions.ApplicationException ae)
             {
