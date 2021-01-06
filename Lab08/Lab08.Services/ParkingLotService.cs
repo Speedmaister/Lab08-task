@@ -164,7 +164,7 @@ namespace Lab08.Services
                 dailyHoursToPayCount = dailyHoursToPay.Count();
                 nightlyHoursToPayCount = nightlyHoursToPay.Count();
             }
-            else if (totalDaysSpent == 1) // left on the next day
+            else if (totalDaysSpent >= 1) // left on the next day or after that
             {
                 var hoursToPay = PeriodToCollection(vehicleRecord.RegistrationDate.TimeOfDay, TimeSpan.FromHours(23));
                 hoursToPay.AddRange(PeriodToCollection(TimeSpan.Zero, now.TimeOfDay));
@@ -173,18 +173,14 @@ namespace Lab08.Services
 
                 dailyHoursToPayCount = dailyHoursToPay.Count();
                 nightlyHoursToPayCount = nightlyHoursToPay.Count();
-            }
-            else // left after a few days
-            {
-                var hoursToPay = PeriodToCollection(vehicleRecord.RegistrationDate.TimeOfDay, TimeSpan.FromHours(23));
-                hoursToPay.AddRange(PeriodToCollection(TimeSpan.Zero, now.TimeOfDay));
-                var dailyHoursToPay = hoursToPay.Where(x => dailyHours.Contains(x));
-                var nightlyHoursToPay = hoursToPay.Where(x => !dailyHours.Contains(x));
 
-                dailyHoursToPayCount = dailyHoursToPay.Count() + (totalDaysSpent - 1) * dailyHours.Count;
-                nightlyHoursToPayCount = nightlyHoursToPay.Count() + (totalDaysSpent - 1) * (24 - dailyHours.Count);
+                if(totalDaysSpent > 1)// left after a few days
+                {
+                    // subtract last day since it's not a full day
+                    dailyHoursToPayCount += (totalDaysSpent - 1) * dailyHours.Count;
+                    nightlyHoursToPayCount += (totalDaysSpent - 1) * (24 - dailyHours.Count);
+                }
             }
-
 
             HoursInParking hoursInParking = new HoursInParking();
             hoursInParking.Daily = dailyHoursToPayCount;
