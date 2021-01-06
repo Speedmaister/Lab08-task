@@ -11,20 +11,17 @@ namespace Lab08.Services
     public class VehicleRegistrationService : IVehicleRegistrationService
     {
         private readonly IRepository<Data.Vehicle> vehicleRepository;
-        private readonly IRepository<Data.ParkingLot> parkingLotRepository;
         private readonly IRepository<Data.PromotionCard> promotionCardRepository;
         private readonly IRepository<Data.VehicleCategory> vehicleCategoryRepository;
 
         private readonly IParkingLotService parkingLotService;
 
         public VehicleRegistrationService(IRepository<Data.Vehicle> vehicleRepository,
-            IRepository<Data.ParkingLot> parkingLotRepository,
             IRepository<Data.PromotionCard> promotionCardRepository,
             IRepository<Data.VehicleCategory> vehicleCategoryRepository,
             IParkingLotService parkingLotService)
         {
             this.vehicleRepository = vehicleRepository;
-            this.parkingLotRepository = parkingLotRepository;
             this.promotionCardRepository = promotionCardRepository;
             this.vehicleCategoryRepository = vehicleCategoryRepository;
 
@@ -44,15 +41,53 @@ namespace Lab08.Services
             }
 
             bool isRegistered = await parkingLotService.TryToRegisterCar(vehicleDb);
-            var vehicleCardType = (Data.CardType)Enum.Parse(typeof(Data.CardType), vehicle.CardType);
-            if (isRegistered && vehicleDb.PromotionCard.Type != vehicleCardType)
+            if (isRegistered)
             {
-                var newCard = promotionCardRepository.FirstOrDefault(x => x.Type == vehicleCardType);
-                vehicleDb.PromotionCard = newCard;
-                await vehicleRepository.UpdateAsync(vehicleDb);
+                Data.PromotionCard newCard = null;
+                bool hasChangedCard = false;
+                if (vehicleDb.PromotionCard != null && vehicle.CardType == null)// had a card but now doesn't
+                {
+                    newCard = null;
+                    hasChangedCard = true;
+                }
+                else if (vehicleDb.PromotionCard == null && vehicle.CardType != null) // didn't have a card but now has
+                {
+                    var vehicleCardType = (Data.CardType)Enum.Parse(typeof(Data.CardType), vehicle.CardType);
+                    newCard = promotionCardRepository.FirstOrDefault(x => x.Type == vehicleCardType);
+                    hasChangedCard = true;
+                }
+                else
+                {
+                    var vehicleCardType = (Data.CardType)Enum.Parse(typeof(Data.CardType), vehicle.CardType);
+                    if (vehicleDb.PromotionCard.Type != vehicleCardType) // had a card and now it's changed
+                    {
+                        newCard = promotionCardRepository.FirstOrDefault(x => x.Type == vehicleCardType);
+                        hasChangedCard = true;
+                    }
+                }
+
+                if (hasChangedCard)
+                {
+                    vehicleDb.PromotionCard = newCard;
+                    await vehicleRepository.UpdateAsync(vehicleDb);
+                }
             }
 
             return isRegistered;
+        }
+
+        public async Task<decimal> UnregisterVehicleAsync(string registrationNumber)
+        {
+            var vehicleDb = await vehicleRepository.FirstOrDefaultAsync(x => x.RegistrationNumber == registrationNumber);
+            if (vehicleDb == null)
+            {
+                throw new VehicleNotRegisteredException(registrationNumber);
+            }
+
+            var discount = vehicleDb.PromotionCard == null ? 0 : vehicleDb.PromotionCard.Discount;
+
+            var timeSpentInParking = await parkingLotService.TryToUnregisterCar(vehicleDb);
+            return (timeSpentInParking.Daily * vehicleDb.Category.DailyCost + timeSpentInParking.Nightly * vehicleDb.Category.NightlyCost) * (1 - discount);
         }
 
         private static void CheckIfCategoryIsChanged(Vehicle vehicle, Data.Vehicle vehicleDb)
@@ -70,7 +105,7 @@ namespace Lab08.Services
             var cardType = ValidateCardType(vehicle);
 
             var category = await vehicleCategoryRepository.FirstOrDefaultAsync(x => x.Type == categoryType);
-            var card = await promotionCardRepository.FirstOrDefaultAsync(x => x.Type == cardType);
+            var card = cardType == null ? null : await promotionCardRepository.FirstOrDefaultAsync(x => x.Type == cardType);
 
             var vehicleDb = new Data.Vehicle()
             {
@@ -82,8 +117,13 @@ namespace Lab08.Services
             return await vehicleRepository.InsertAsync(vehicleDb);
         }
 
-        private static Data.CardType ValidateCardType(Vehicle vehicle)
+        private static Data.CardType? ValidateCardType(Vehicle vehicle)
         {
+            if (vehicle.CardType == null)
+            {
+                return null;
+            }
+
             if (!Enum.TryParse(vehicle.CardType, out Data.CardType cardType))
             {
                 throw new InvalidCardTypeException(vehicle.CardType);

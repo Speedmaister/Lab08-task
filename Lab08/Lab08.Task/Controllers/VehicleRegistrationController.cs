@@ -24,7 +24,7 @@ namespace Lab08.Task.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody]VehicleRegistrationViewModel vehicle)
+        public async Task<IActionResult> Register([FromBody]VehicleRegisterViewModel vehicle)
         {
             try
             {
@@ -41,6 +41,26 @@ namespace Lab08.Task.Controllers
                 return BadRequest(ae.ToString());
             }
             catch(Exception ex)
+            {
+                logger.LogWarning(ex, "Error occurred.");
+                return BadRequest("Failed to register vehicle.");
+            }
+        }
+
+        [HttpPut("unregister")]
+        public async Task<IActionResult> Unregister([FromBody] VehicleUnregisterViewModel vehicle)
+        {
+            try
+            {
+                var amountToPay = await vehicleRegistrationService.UnregisterVehicleAsync(vehicle.RegistrationNumber);
+                return Ok(new { AmountToPay = amountToPay });
+            }
+            catch (Services.Exceptions.ApplicationException ae)
+            {
+                logger.LogWarning(ae, "Error occurred.");
+                return BadRequest(ae.ToString());
+            }
+            catch (Exception ex)
             {
                 logger.LogWarning(ex, "Error occurred.");
                 return BadRequest("Failed to register vehicle.");

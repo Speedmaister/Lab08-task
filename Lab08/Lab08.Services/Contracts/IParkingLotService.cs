@@ -1,11 +1,11 @@
-﻿using Lab08.Data;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace Lab08.Services.Contracts
 {
     public interface IParkingLotService
     {
-        Task<ParkingLot> Get();
-        Task<bool> TryToRegisterCar(Vehicle vehicle);
+        Task<Data.ParkingLot> Get();
+        Task<bool> TryToRegisterCar(Data.Vehicle vehicle);
+        Task<Models.HoursInParking> TryToUnregisterCar(Data.Vehicle vehicle);
     }
 }

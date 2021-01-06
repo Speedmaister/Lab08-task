@@ -47,9 +47,9 @@ namespace Lab08.DbInitialization
             var promotionalCardRepository = host.Services.GetService<IRepository<PromotionCard>>();
             promotionalCardRepository.InsertManyAsync(new PromotionCard[]
             {
-                new PromotionCard(){Type = CardType.Silver, Discount = 10},
-                new PromotionCard(){Type = CardType.Gold, Discount = 15},
-                new PromotionCard(){Type = CardType.Platinum, Discount = 20}
+                new PromotionCard(){Type = CardType.Silver, Discount = 0.1m},
+                new PromotionCard(){Type = CardType.Gold, Discount = 0.15m},
+                new PromotionCard(){Type = CardType.Platinum, Discount = 0.2m}
             }).Wait();
 
             var parkingRepository = host.Services.GetService<IRepository<ParkingLot>>();

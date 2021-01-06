@@ -2,7 +2,7 @@
 
 namespace Lab08.Task.ViewModels.VehicleRegistration
 {
-    public class VehicleRegistrationViewModel
+    public class VehicleRegisterViewModel
     {
         public string RegistrationNumber { get; set; }
         public string CardType { get; set; }

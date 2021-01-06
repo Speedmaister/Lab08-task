@@ -6,5 +6,6 @@ namespace Lab08.Services.Contracts
     public interface IVehicleRegistrationService
     {
         Task<bool> RegisterVehicleAsync(Vehicle vehicle);
+        Task<decimal> UnregisterVehicleAsync(string registrationNumber);
     }
 }

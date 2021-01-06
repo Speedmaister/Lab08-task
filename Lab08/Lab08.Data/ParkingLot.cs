@@ -10,6 +10,6 @@ namespace Lab08.Data
         public int AvailableSpace { get; set; }
         public TimeSpan DailyCostStart { get; set; }
         public TimeSpan NigtlyCostStart { get; set; }
-        public List<Vehicle> Vehicles { get; set; }
+        public List<VehicleRecord> Vehicles { get; set; }
     }
 }

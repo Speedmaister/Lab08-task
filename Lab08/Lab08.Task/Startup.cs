@@ -59,6 +59,7 @@ namespace Lab08.Task
 
             services.AddTransient<IVehicleRegistrationService, VehicleRegistrationService>();
             services.AddTransient<IParkingLotService, ParkingLotService>();
+            services.AddSingleton<ICurrentTimeProvider, CurrentTimeProvider>();
 
         }
 
