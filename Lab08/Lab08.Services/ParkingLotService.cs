@@ -81,73 +81,59 @@ namespace Lab08.Services
 
         private HoursInParking CalculateHoursSpentInParking(Data.ParkingLot parkingLot, Data.VehicleRecord vehicleRecord)
         {
+            var dailyHours = new HashSet<int>(PeriodToCollection(parkingLot.DailyCostStart, parkingLot.NigtlyCostStart - TimeSpan.FromHours(1)));
             var now = currentTimeProvider.Now();
+
+            int dailyHoursToPayCount = 0;
+            int nightlyHoursToPayCount = 0;
+
             var totalDaysSpent = (now.Date - vehicleRecord.RegistrationDate.Date).Days;
-            bool isSameDay = totalDaysSpent == 0;
+            if (totalDaysSpent == 0) // left the same day
+            {
+                var hoursToPay = PeriodToCollection(vehicleRecord.RegistrationDate.TimeOfDay, now.TimeOfDay);
+                var dailyHoursToPay = hoursToPay.Where(x => dailyHours.Contains(x));
+                var nightlyHoursToPay = hoursToPay.Where(x => !dailyHours.Contains(x));
 
-            // Need to calculate when same day.
+                dailyHoursToPayCount = dailyHoursToPay.Count();
+                nightlyHoursToPayCount = nightlyHoursToPay.Count();
+            }
+            else if (totalDaysSpent == 1) // left on the next day
+            {
+                var hoursToPay = PeriodToCollection(vehicleRecord.RegistrationDate.TimeOfDay, TimeSpan.FromHours(23));
+                hoursToPay.AddRange(PeriodToCollection(TimeSpan.Zero, now.TimeOfDay));
+                var dailyHoursToPay = hoursToPay.Where(x => dailyHours.Contains(x));
+                var nightlyHoursToPay = hoursToPay.Where(x => !dailyHours.Contains(x));
 
-            // Bottom is for total days spent above 0. Set days to 0 if equal to 1, because calculation is the same as below when 0
-            // Calculate time during first day
-            TimeOfRegistrationType timeOfRegistrationType;
-            if (vehicleRecord.RegistrationDate.Hour < parkingLot.DailyCostStart.Hours)
-            {
-                timeOfRegistrationType = TimeOfRegistrationType.BeforeDaily;
+                dailyHoursToPayCount = dailyHoursToPay.Count();
+                nightlyHoursToPayCount = nightlyHoursToPay.Count();
             }
-            else if (vehicleRecord.RegistrationDate.Hour < parkingLot.NigtlyCostStart.Hours)
+            else // left after a few days
             {
-                timeOfRegistrationType = TimeOfRegistrationType.DuringDaily;
-            }
-            else
-            {
-                timeOfRegistrationType = TimeOfRegistrationType.AfterDaily;
-            }
+                var hoursToPay = PeriodToCollection(vehicleRecord.RegistrationDate.TimeOfDay, TimeSpan.FromHours(23));
+                hoursToPay.AddRange(PeriodToCollection(TimeSpan.Zero, now.TimeOfDay));
+                var dailyHoursToPay = hoursToPay.Where(x => dailyHours.Contains(x));
+                var nightlyHoursToPay = hoursToPay.Where(x => !dailyHours.Contains(x));
 
-            var (firstDayDailyHours, firstDayNightlyHours) = GetCostingHoursForDay(timeOfRegistrationType, vehicleRecord.RegistrationDate, parkingLot);
-            // Calculate time during last day
-            TimeOfRegistrationType timeOfUnregistrationType;
-            if (now.Hour < parkingLot.DailyCostStart.Hours)
-            {
-                timeOfUnregistrationType = TimeOfRegistrationType.BeforeDaily;
-            }
-            else if (now.Hour < parkingLot.NigtlyCostStart.Hours)
-            {
-                timeOfUnregistrationType = TimeOfRegistrationType.DuringDaily;
-            }
-            else
-            {
-                timeOfUnregistrationType = TimeOfRegistrationType.AfterDaily;
+                dailyHoursToPayCount = dailyHoursToPay.Count() + (totalDaysSpent - 1) * dailyHours.Count;
+                nightlyHoursToPayCount = nightlyHoursToPay.Count() + (totalDaysSpent - 1) * (24 - dailyHours.Count);
             }
 
-            var (lastDayDailyHoursNotSpent, lastDayNightlyHoursNotSpent) = GetCostingHoursForDay(timeOfUnregistrationType, now, parkingLot);
 
-            int maxDailyHoursForDay = parkingLot.NigtlyCostStart.Hours - parkingLot.DailyCostStart.Hours;
             HoursInParking hoursInParking = new HoursInParking();
-            hoursInParking.Daily = firstDayDailyHours + (maxDailyHoursForDay - lastDayDailyHoursNotSpent) + totalDaysSpent * maxDailyHoursForDay;
-            hoursInParking.Nightly = firstDayNightlyHours + (24 - maxDailyHoursForDay - lastDayNightlyHoursNotSpent) + totalDaysSpent * (24 - maxDailyHoursForDay);
+            hoursInParking.Daily = dailyHoursToPayCount;
+            hoursInParking.Nightly = nightlyHoursToPayCount;
             return hoursInParking;
         }
 
-        private enum TimeOfRegistrationType
+        private List<int> PeriodToCollection(TimeSpan first, TimeSpan second)
         {
-            BeforeDaily,
-            DuringDaily,
-            AfterDaily
-        }
-
-        private (int dailyHours, int nightlyHours) GetCostingHoursForDay(TimeOfRegistrationType timeOfRegistrationType, DateTime registrationDate, Data.ParkingLot parkingLot)
-        {
-            switch (timeOfRegistrationType)
+            List<int> collection = new List<int>();
+            for (int i = first.Hours; i <= second.Hours; i++)
             {
-                case TimeOfRegistrationType.BeforeDaily:
-                    return ((parkingLot.NigtlyCostStart.Hours - parkingLot.DailyCostStart.Hours), (parkingLot.DailyCostStart.Hours - registrationDate.Hour) + (24 - parkingLot.NigtlyCostStart.Hours));
-                case TimeOfRegistrationType.DuringDaily:
-                    return (parkingLot.NigtlyCostStart.Hours - registrationDate.Hour, 24 - parkingLot.NigtlyCostStart.Hours);
-                case TimeOfRegistrationType.AfterDaily:
-                    return (0, 24 - registrationDate.Hour);
-                default:
-                    return (0, 0);
+                collection.Add(i);
             }
+
+            return collection;
         }
     }
 }
