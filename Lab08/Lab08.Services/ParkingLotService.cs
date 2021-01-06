@@ -1,4 +1,5 @@
 ﻿using Lab08.Repository.Contracts;
+using Lab08.Repository.Enums;
 using Lab08.Services.Contracts;
 using Lab08.Services.Exceptions;
 using Lab08.Services.Models;
@@ -37,23 +38,54 @@ namespace Lab08.Services
             }
 
             var vehicleRequiredSpace = vehicle.GetParkingSpace();
-            var hasSpace = 0 <= parkingLot.AvailableSpace - vehicleRequiredSpace;
-            if (hasSpace)
+            var record = new Data.VehicleRecord()
             {
-                parkingLot.AvailableSpace -= vehicleRequiredSpace;
-                if (parkingLot.Vehicles == null)
-                {
-                    parkingLot.Vehicles = new List<Data.VehicleRecord>();
-                }
+                Id = vehicle.Id,
+                RegistrationDate = currentTimeProvider.Now(),
+                PromotionCard = vehicle.PromotionCard,
+                Category = vehicle.Category
+            };
 
-                parkingLot.Vehicles.Add(new Data.VehicleRecord()
+            // Prevent simultanious updates by applying simple concurrency control.
+            var addVehicleToParkingUpdate = MongoDB.Driver.Builders<Data.ParkingLot>.Update.AddToSet(x => x.Vehicles, record);
+
+            var result = CollectionUpdateResult.Conflict;
+            bool hasSpace = false;
+            while (result == CollectionUpdateResult.Conflict)
+            {
+                // Recalculate available space, because another request might have added another car
+                hasSpace = 0 <= parkingLot.AvailableSpace - vehicleRequiredSpace;
+                var takeAvailableSpaceUpdate = MongoDB.Driver.Builders<Data.ParkingLot>.Update.Set(x => x.AvailableSpace, parkingLot.AvailableSpace - vehicleRequiredSpace);
+                if (hasSpace)
                 {
-                    Id = vehicle.Id,
-                    RegistrationDate = currentTimeProvider.Now(),
-                    PromotionCard = vehicle.PromotionCard,
-                    Category = vehicle.Category
-                });
-                await parkingLotRepository.UpdateAsync(parkingLot);
+                    if (parkingLot.Vehicles == null)
+                    {
+                        parkingLot.Vehicles = new List<Data.VehicleRecord>();
+                    }
+
+                    result = await parkingLotRepository.UpdateConcurrentlyAsync(parkingLot, null, addVehicleToParkingUpdate, takeAvailableSpaceUpdate);
+                    if(result == CollectionUpdateResult.Conflict)
+                    {
+                        parkingLot = await Get();
+                        // Vehicle might have been added by another request
+                        if (parkingLot.Vehicles != null && parkingLot.Vehicles.Any(x => x.Id == vehicle.Id))
+                        {
+                            throw new VehicleAlreadyInParkingLotException(vehicle.RegistrationNumber);
+                        }
+                    }
+                    else if( result == CollectionUpdateResult.Failed)
+                    {
+                        // Log error
+                        hasSpace = false;
+                        break;
+                    }
+                    // Nothing to do on success
+                }
+                else
+                {
+                    // No need to try to put the vehicle in the parking if its already full.
+                    break;
+                }
             }
 
             return hasSpace;
@@ -68,15 +100,36 @@ namespace Lab08.Services
                 throw new VehicleNotInParkingLotException(vehicle.RegistrationNumber);
             }
 
+            // Prevent simultanious updates by applying simple concurrency control.
+            var record = parkingLot.Vehicles.FirstOrDefault(x => x.Id == vehicle.Id);
+            var removeVehicleFromParkingUpdate = MongoDB.Driver.Builders<Data.ParkingLot>.Update.Pull(x => x.Vehicles, record);
+
             var vehicleRequiredSpace = vehicle.GetParkingSpace();
-            parkingLot.AvailableSpace += vehicleRequiredSpace;
 
-            var vehicleRecord = parkingLot.Vehicles.FirstOrDefault(x => x.Id == vehicle.Id);
+            var result = CollectionUpdateResult.Conflict;
+            while (result == CollectionUpdateResult.Conflict)
+            {
+                var returnAvailableSpaceUpdate = MongoDB.Driver.Builders<Data.ParkingLot>.Update.Set(x => x.AvailableSpace, parkingLot.AvailableSpace + vehicleRequiredSpace);
+                result = await parkingLotRepository.UpdateConcurrentlyAsync(parkingLot, null, removeVehicleFromParkingUpdate, returnAvailableSpaceUpdate);
+                if(result == CollectionUpdateResult.Conflict)
+                {
+                    // Simply reload parking with new data and try again.
+                    parkingLot = await Get();
+                    // Vehicle might have been removed by another request
+                    if (parkingLot.Vehicles == null || parkingLot.Vehicles.All(x => x.Id != vehicle.Id))
+                    {
+                        throw new VehicleNotInParkingLotException(vehicle.RegistrationNumber);
+                    }
+                }
+                else if (result == CollectionUpdateResult.Failed)
+                {
+                    // Log error
+                    break;
+                }
+                // Nothing to do on success
+            }
 
-            parkingLot.Vehicles.RemoveAll(x => x.Id == vehicle.Id);
-            await parkingLotRepository.UpdateAsync(parkingLot);
-
-            return CalculateHoursSpentInParking(parkingLot, vehicleRecord);
+            return CalculateHoursSpentInParking(parkingLot, record);
         }
 
         public async Task<HoursInParking> CalculateHoursSpentInParking(Data.Vehicle vehicle)
@@ -95,6 +148,7 @@ namespace Lab08.Services
         private HoursInParking CalculateHoursSpentInParking(Data.ParkingLot parkingLot, Data.VehicleRecord vehicleRecord)
         {
             var dailyHours = new HashSet<int>(PeriodToCollection(parkingLot.DailyCostStart, parkingLot.NigtlyCostStart - TimeSpan.FromHours(1)));
+            // Use service for providing current time for easier testing.
             var now = currentTimeProvider.Now();
 
             int dailyHoursToPayCount = 0;

@@ -10,6 +10,8 @@ namespace Lab08.Services
 {
     public class VehicleRegistrationService : IVehicleRegistrationService
     {
+        private static object vehicleCreationLock = new object();
+
         private readonly IRepository<Data.Vehicle> vehicleRepository;
         private readonly IRepository<Data.PromotionCard> promotionCardRepository;
         private readonly IRepository<Data.VehicleCategory> vehicleCategoryRepository;
@@ -30,15 +32,7 @@ namespace Lab08.Services
 
         public async Task<bool> RegisterVehicleAsync(Vehicle vehicle)
         {
-            var vehicleDb = await vehicleRepository.FirstOrDefaultAsync(x => x.RegistrationNumber == vehicle.RegistrationNumber);
-            if (vehicleDb == null)
-            {
-                vehicleDb = await RegisterVehicleInDbAsync(vehicle);
-            }
-            else
-            {
-                CheckIfCategoryIsChanged(vehicle, vehicleDb);
-            }
+            var vehicleDb = GetVehicleFromDbAsync(vehicle);
 
             bool isRegistered = await parkingLotService.TryToRegisterCar(vehicleDb);
             if (isRegistered)
@@ -74,6 +68,24 @@ namespace Lab08.Services
             }
 
             return isRegistered;
+        }
+
+        private Data.Vehicle GetVehicleFromDbAsync(Vehicle vehicle)
+        {
+            lock (vehicleCreationLock) // Prevent multiple request to create the same vehicle in the db
+            {
+                var vehicleDb = vehicleRepository.FirstOrDefault(x => x.RegistrationNumber == vehicle.RegistrationNumber);
+                if (vehicleDb == null)
+                {
+                    vehicleDb = RegisterVehicleInDbAsync(vehicle).Result;
+                }
+                else
+                {
+                    CheckIfCategoryIsChanged(vehicle, vehicleDb);
+                }
+
+                return vehicleDb;
+            }
         }
 
         public async Task<decimal> UnregisterVehicleAsync(string registrationNumber)
